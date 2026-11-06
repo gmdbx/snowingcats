@@ -1,6 +1,2 @@
 #!/bin/sh
-
-# Copy Root.plist directly to PreferenceLoader/Preferences/
-cp "/var/jb/Library/PreferenceBundles/SnowingCatsPrefs.bundle/Root.plist" "/var/jb/Library/PreferenceLoader/Preferences/SnowingCats.plist"
-
 exit 0
