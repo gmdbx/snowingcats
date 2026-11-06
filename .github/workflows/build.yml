@@ -25,9 +25,9 @@ jobs:
 
       - name: Install toolchain
         run: |
-          curl -LO https://github.com/verygenericname/llvm-swift/releases/download/13.0.0/llvm-swift-linux.tar.zst
-          sudo tar -xf llvm-swift-linux.tar.zst -C /opt/
-          echo "/opt/llvm-swift-linux/bin" >> $GITHUB_PATH
+          curl -LO https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.7.1-ubuntu20.04.tar.xz
+          sudo tar -xf swift-5.7.1-ubuntu20.04.tar.xz -C /opt/
+          echo "/opt/swift-5.7.1-ubuntu20.04/usr/bin" >> $GITHUB_PATH
 
       - name: Install ldid
         run: |
@@ -39,7 +39,7 @@ jobs:
         env:
           THEOS: /home/runner/theos
         run: |
-          export PATH="/opt/llvm-swift-linux/bin:$THEOS/bin:$PATH"
+          export PATH="/opt/swift-5.7.1-ubuntu20.04/usr/bin:$THEOS/bin:$PATH"
           make package FINALPACKAGE=1
 
       - name: Upload .deb
