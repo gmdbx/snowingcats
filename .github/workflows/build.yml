@@ -34,7 +34,7 @@ jobs:
           THEOS: /home/runner/theos
         run: |
           export PATH="$THEOS/bin:$PATH"
-          make package FINALPACKAGE=1 TARGET=iphone:clang:15.0:15.0 ARCHS=arm64
+          make package FINALPACKAGE=1
 
       - name: Upload .deb
         uses: actions/upload-artifact@v4
