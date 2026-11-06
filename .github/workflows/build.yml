@@ -67,6 +67,12 @@ jobs:
           rm -rf packages/
           make clean
           make package FINALPACKAGE=1
+          echo "=== Package contents ==="
+          dpkg-deb -c packages/*.deb | head -50
+          echo "=== Extracting to check paths ==="
+          mkdir -p /tmp/pkg
+          dpkg-deb -x packages/*.deb /tmp/pkg
+          find /tmp/pkg -type f | sort
 
       - name: Upload .deb
         uses: actions/upload-artifact@v4
