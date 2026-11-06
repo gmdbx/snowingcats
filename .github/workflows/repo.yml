@@ -54,13 +54,11 @@ jobs:
           mkdir -p repo/debs
           cp packages/*.deb repo/debs/
           
-          # Create Packages file
           cd repo
           dpkg-scanpackages -m debs /dev/null > Packages
           bzip2 -fks Packages
           
-          # Create Release file
-          cat > Release << EOF
+          cat > Release << 'EOF'
           Origin: SnowingCats Repo
           Label: SnowingCats
           Suite: stable
@@ -71,9 +69,18 @@ jobs:
           Description: Snowing Cats tweak repository
           EOF
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./repo
-          publish_branch: gh-pages
+      - name: Deploy to gh-pages
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git clone --branch gh-pages --single-branch https://github.com/gmdbx/snowingcats.git gh-pages 2>/dev/null || git clone https://github.com/gmdbx/snowingcats.git gh-pages
+          cd gh-pages
+          
+          # Clean and copy new files
+          rm -rf debs Packages Packages.bz2 Release
+          cp -r ../repo/* .
+          
+          git add .
+          git commit -m "Update repo $(date)" || echo "No changes"
+          git push origin gh-pages
