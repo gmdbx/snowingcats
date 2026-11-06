@@ -67,13 +67,33 @@ jobs:
         env:
           THEOS: /home/runner/theos
         run: |
-          echo "=== Fixing permissions ==="
-          chmod +x $THEOS/toolchain/linux/iphone/bin/* 2>/dev/null || true
-          echo "=== Checking clang ==="
-          ls -la $THEOS/toolchain/linux/iphone/bin/clang*
-          file $THEOS/toolchain/linux/iphone/bin/clang
+          echo "=== Finding real clang ==="
+          find $THEOS/toolchain -name "clang" -type f 2>/dev/null
+          echo "=== Finding host dir ==="
+          find $THEOS/toolchain -type d -name "host" 2>/dev/null
+          echo "=== Full toolchain tree ==="
+          find $THEOS/toolchain -maxdepth 4 -type d | sort
+          echo "=== Fixing broken symlinks ==="
+          # Find where clang really is
+          REAL_CLANG=$(find $THEOS/toolchain -name "clang" -type f 2>/dev/null | head -1)
+          echo "Real clang at: $REAL_CLANG"
+          if [ -n "$REAL_CLANG" ]; then
+            CLANG_DIR=$(dirname "$REAL_CLANG")
+            echo "Clang dir: $CLANG_DIR"
+            # Remove broken symlink and copy real file
+            rm -f $THEOS/toolchain/linux/iphone/bin/clang
+            cp "$REAL_CLANG" $THEOS/toolchain/linux/iphone/bin/clang
+            chmod +x $THEOS/toolchain/linux/iphone/bin/clang
+            # Same for clang++
+            REAL_CLANGXX=$(find $THEOS/toolchain -name "clang++" -type f 2>/dev/null | head -1)
+            if [ -n "$REAL_CLANGXX" ]; then
+              rm -f $THEOS/toolchain/linux/iphone/bin/clang++
+              cp "$REAL_CLANGXX" $THEOS/toolchain/linux/iphone/bin/clang++
+              chmod +x $THEOS/toolchain/linux/iphone/bin/clang++
+            fi
+          fi
           echo "=== Testing clang ==="
-          $THEOS/toolchain/linux/iphone/bin/clang --version || echo "clang failed"
+          $THEOS/toolchain/linux/iphone/bin/clang --version || echo "clang still failed"
           export PATH="$THEOS/bin:$PATH"
           make package FINALPACKAGE=1
 
