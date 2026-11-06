@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# Copy prefs to both possible locations for PreferenceLoader
+if [ -d "/var/jb/Library/PreferenceBundles/SnowingCatsPrefs.bundle" ]; then
+    mkdir -p "/var/jb/Library/PreferenceLoader/Preferences/SnowingCatsPrefs"
+    cp -r "/var/jb/Library/PreferenceBundles/SnowingCatsPrefs.bundle/"* "/var/jb/Library/PreferenceLoader/Preferences/SnowingCatsPrefs/"
+fi
+
+exit 0
