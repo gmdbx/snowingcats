@@ -6,26 +6,39 @@ on:
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git curl build-essential clang fakeroot libtinfo5 perl zstd
 
       - name: Install Theos
         run: |
           git clone --recursive https://github.com/theos/theos.git $HOME/theos
           git clone --recursive https://github.com/theos/sdks $HOME/theos/sdks
 
+      - name: Install toolchain
+        run: |
+          curl -LO https://github.com/verygenericname/llvm-swift/releases/download/13.0.0/llvm-swift-linux.tar.zst
+          sudo tar -xf llvm-swift-linux.tar.zst -C /opt/
+          echo "/opt/llvm-swift-linux/bin" >> $GITHUB_PATH
+
       - name: Install ldid
         run: |
-          brew install ldid dpkg
+          curl -LO https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus2/ldid_linux_x86_64
+          chmod +x ldid_linux_x86_64
+          sudo mv ldid_linux_x86_64 /usr/local/bin/ldid
 
       - name: Build
         env:
-          THEOS: /Users/runner/theos
+          THEOS: /home/runner/theos
         run: |
-          export PATH="$THEOS/bin:$PATH"
+          export PATH="/opt/llvm-swift-linux/bin:$THEOS/bin:$PATH"
           make package FINALPACKAGE=1
 
       - name: Upload .deb
