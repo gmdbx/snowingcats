@@ -26,7 +26,6 @@ static UIImage *SCCatImage() {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         cat = [UIImage imageWithContentsOfFile:[BUNDLE_PATH stringByAppendingPathComponent:@"cat.png"]];
-        if (!cat) cat = [UIImage imageWithContentsOfFile:@"/Library/Application Support/SnowingCats/cat.png"];
     });
     return cat;
 }
