@@ -28,7 +28,9 @@ jobs:
           mkdir -p $HOME/theos/toolchain/linux/iphone
           curl -LO https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz
           tar -xf swift-5.8-ubuntu22.04.tar.xz
-          cp -r swift-5.8-ubuntu22.04/usr/* $HOME/theos/toolchain/linux/iphone/
+          ls -la
+          ls -la swift-*/
+          cp -r swift-*/usr/* $HOME/theos/toolchain/linux/iphone/
 
       - name: Install ldid
         run: |
