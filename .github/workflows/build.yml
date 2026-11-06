@@ -23,12 +23,6 @@ jobs:
           rm -rf $HOME/theos/sdks
           git clone --recursive https://github.com/theos/sdks $HOME/theos/sdks
 
-      - name: Install toolchain
-        run: |
-          curl -LO https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.7.1-ubuntu20.04.tar.xz
-          sudo tar -xf swift-5.7.1-ubuntu20.04.tar.xz -C /opt/
-          echo "/opt/swift-5.7.1-ubuntu20.04/usr/bin" >> $GITHUB_PATH
-
       - name: Install ldid
         run: |
           curl -LO https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus2/ldid_linux_x86_64
@@ -39,8 +33,8 @@ jobs:
         env:
           THEOS: /home/runner/theos
         run: |
-          export PATH="/opt/swift-5.7.1-ubuntu20.04/usr/bin:$THEOS/bin:$PATH"
-          make package FINALPACKAGE=1
+          export PATH="$THEOS/bin:$PATH"
+          make package FINALPACKAGE=1 TARGET=iphone:clang:15.0:15.0 ARCHS=arm64
 
       - name: Upload .deb
         uses: actions/upload-artifact@v4
