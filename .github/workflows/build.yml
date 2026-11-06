@@ -64,6 +64,8 @@ jobs:
           THEOS: /home/runner/theos
         run: |
           export PATH="$THEOS/bin:$PATH"
+          rm -rf packages/
+          make clean
           make package FINALPACKAGE=1
 
       - name: Upload .deb
