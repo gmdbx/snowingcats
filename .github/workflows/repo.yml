@@ -2,6 +2,7 @@ name: Build and Deploy Repo
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -49,12 +50,12 @@ jobs:
           make clean
           make package FINALPACKAGE=1
 
-      - name: Create repo structure
+      - name: Create repo
         run: |
-          mkdir -p repo/debs
-          cp packages/*.deb repo/debs/
+          mkdir -p repo_output/debs
+          cp packages/*.deb repo_output/debs/
           
-          cd repo
+          cd repo_output
           dpkg-scanpackages -m debs /dev/null > Packages
           bzip2 -fks Packages
           
@@ -76,17 +77,17 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Remove old gh-pages and clone fresh
-          rm -rf gh-pages
-          git clone --branch gh-pages --single-branch https://x-access-token:${GITHUB_TOKEN}@github.com/gmdbx/snowingcats.git gh-pages 2>/dev/null || git clone https://x-access-token:${GITHUB_TOKEN}@github.com/gmdbx/snowingcats.git gh-pages
-          cd gh-pages
-          
-          # Remove ALL files (keep .git)
-          find . -maxdepth 1 -not -name '.git' -not -name '.' -exec rm -rf {} +
+          # Create orphan branch for clean gh-pages
+          git checkout --orphan gh-pages-clean
+          git rm -rf . 2>/dev/null || true
           
           # Copy repo files
-          cp -r ../repo/* .
+          cp -r repo_output/* .
+          rm -rf repo_output
           
           git add .
-          git commit -m "Update repo $(date)" || echo "No changes"
-          git push origin gh-pages --force
+          git commit -m "Repo update $(date)"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/gmdbx/snowingcats.git gh-pages-clean:gh-pages --force
+          
+          # Switch back
+          git checkout main
