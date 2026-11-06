@@ -6,4 +6,4 @@ Description: Cats falling like snow on your SpringBoard. Configurable count and 
 Maintainer: You
 Author: You
 Section: Tweaks
-Depends: mobilesubstrate
+Depends: mobilesubstrate, preferenceloader
