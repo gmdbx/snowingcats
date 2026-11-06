@@ -26,34 +26,35 @@ jobs:
       - name: Install toolchain
         run: |
           curl -LO https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz
+          echo "=== Archive contents (first 30) ==="
+          tar -tf swift-5.8-ubuntu22.04.tar.xz | head -30
+          echo "=== Extracting ==="
           tar -xf swift-5.8-ubuntu22.04.tar.xz
           echo "=== Top level ==="
           ls -la
           echo "=== linux dir ==="
           ls -la linux/ 2>/dev/null || echo "no linux dir"
-          echo "=== swift dir ==="
-          ls -la swift-*/ 2>/dev/null || echo "no swift dir"
+          echo "=== linux/iphone dir ==="
+          ls -la linux/iphone/ 2>/dev/null || echo "no linux/iphone dir"
           echo "=== All clang files ==="
-          find . -name "clang" -o -name "clang++" 2>/dev/null
+          find . -name "clang" -type f 2>/dev/null
+          find . -name "clang++" -type f 2>/dev/null
           echo "=== Copying toolchain ==="
           mkdir -p $HOME/theos/toolchain/linux/iphone
           if [ -d "linux/iphone" ]; then
             cp -r linux/iphone/* $HOME/theos/toolchain/linux/iphone/
+            echo "Copied from linux/iphone/"
           elif [ -d "linux" ]; then
             cp -r linux/* $HOME/theos/toolchain/linux/
+            echo "Copied from linux/"
           else
-            # Find wherever clang is and copy its parent structure
+            echo "No linux dir found, searching..."
             CLANG_PATH=$(find . -name "clang" -type f | head -1)
-            if [ -n "$CLANG_PATH" ]; then
-              CLANG_DIR=$(dirname "$CLANG_PATH")
-              echo "Found clang at: $CLANG_PATH"
-              echo "Clang dir: $CLANG_DIR"
-              # Copy the whole structure containing bin/
-              cp -r $(dirname "$CLANG_DIR")/* $HOME/theos/toolchain/linux/iphone/
-            fi
+            echo "Found clang at: $CLANG_PATH"
           fi
           echo "=== Final toolchain structure ==="
           ls -la $HOME/theos/toolchain/linux/iphone/
+          echo "=== bin dir ==="
           ls -la $HOME/theos/toolchain/linux/iphone/bin/ 2>/dev/null || echo "no bin dir"
 
       - name: Install ldid
