@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git curl build-essential clang fakeroot libtinfo6 perl zstd
+          sudo apt-get install -y git curl build-essential clang fakeroot libtinfo6 perl zstd xz-utils
 
       - name: Install Theos
         run: |
@@ -25,10 +25,10 @@ jobs:
 
       - name: Install toolchain
         run: |
-          mkdir -p $THEOS/toolchain/linux/iphone
+          mkdir -p $HOME/theos/toolchain/linux/iphone
           curl -LO https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz
           tar -xf swift-5.8-ubuntu22.04.tar.xz
-          cp -r swift-5.8-ubuntu22.04/usr/* $THEOS/toolchain/linux/iphone/
+          cp -r swift-5.8-ubuntu22.04/usr/* $HOME/theos/toolchain/linux/iphone/
 
       - name: Install ldid
         run: |
