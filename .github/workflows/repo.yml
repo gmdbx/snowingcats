@@ -70,11 +70,13 @@ jobs:
           EOF
 
       - name: Deploy to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          git clone --branch gh-pages --single-branch https://github.com/gmdbx/snowingcats.git gh-pages 2>/dev/null || git clone https://github.com/gmdbx/snowingcats.git gh-pages
+          git clone --branch gh-pages --single-branch https://x-access-token:${GITHUB_TOKEN}@github.com/gmdbx/snowingcats.git gh-pages 2>/dev/null || git clone https://x-access-token:${GITHUB_TOKEN}@github.com/gmdbx/snowingcats.git gh-pages
           cd gh-pages
           
           # Clean and copy new files
