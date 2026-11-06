@@ -67,15 +67,13 @@ jobs:
         env:
           THEOS: /home/runner/theos
         run: |
+          echo "=== Toolchain structure ==="
+          find $THEOS/toolchain -type f | head -50
+          echo "=== bin dir ==="
+          ls -la $THEOS/toolchain/linux/iphone/bin/ 2>/dev/null || echo "no bin"
+          echo "=== Looking for clang ==="
+          find $THEOS/toolchain -name "clang*" 2>/dev/null
           export PATH="$THEOS/bin:$PATH"
-          export TARGET_CODESIGN=ldid
-          export TARGET_CODESIGN_FLAGS="--sign"
-          export CODESIGN_ALLOCATE="$THEOS/toolchain/linux/iphone/bin/codesign_allocate"
-          export TARGET_CC="$THEOS/toolchain/linux/iphone/bin/clang"
-          export TARGET_CXX="$THEOS/toolchain/linux/iphone/bin/clang++"
-          export TARGET_LD="$THEOS/toolchain/linux/iphone/bin/ld64"
-          export TARGET_STRIP="$THEOS/toolchain/linux/iphone/bin/strip"
-          export TARGET_DSUTILS="$THEOS/toolchain/linux/iphone/bin/dsymutil"
           make package FINALPACKAGE=1
 
       - name: Upload .deb
