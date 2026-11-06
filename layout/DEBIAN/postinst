@@ -1,10 +1,6 @@
 #!/bin/sh
 
-# Copy prefs to PreferenceLoader path where it looks on rootless
-mkdir -p "/var/jb/Library/PreferenceLoader/Preferences/SnowingCatsPrefs"
-cp -r "/var/jb/Library/PreferenceBundles/SnowingCatsPrefs.bundle/"* "/var/jb/Library/PreferenceLoader/Preferences/SnowingCatsPrefs/"
-
-# Also create symlink as fallback
-ln -sf "/var/jb/Library/PreferenceBundles/SnowingCatsPrefs.bundle" "/var/jb/Library/PreferenceLoader/Preferences/SnowingCatsPrefs.bundle"
+# Copy Root.plist directly to PreferenceLoader/Preferences/
+cp "/var/jb/Library/PreferenceBundles/SnowingCatsPrefs.bundle/Root.plist" "/var/jb/Library/PreferenceLoader/Preferences/SnowingCats.plist"
 
 exit 0
