@@ -23,6 +23,13 @@ jobs:
           rm -rf $HOME/theos/sdks
           git clone --recursive https://github.com/theos/sdks $HOME/theos/sdks
 
+      - name: Install toolchain
+        run: |
+          mkdir -p $THEOS/toolchain/linux/iphone
+          curl -LO https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz
+          tar -xf swift-5.8-ubuntu22.04.tar.xz
+          cp -r swift-5.8-ubuntu22.04/usr/* $THEOS/toolchain/linux/iphone/
+
       - name: Install ldid
         run: |
           curl -LO https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus2/ldid_linux_x86_64
