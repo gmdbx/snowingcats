@@ -68,6 +68,14 @@ jobs:
           THEOS: /home/runner/theos
         run: |
           export PATH="$THEOS/bin:$PATH"
+          export TARGET_CODESIGN=ldid
+          export TARGET_CODESIGN_FLAGS="--sign"
+          export CODESIGN_ALLOCATE="$THEOS/toolchain/linux/iphone/bin/codesign_allocate"
+          export TARGET_CC="$THEOS/toolchain/linux/iphone/bin/clang"
+          export TARGET_CXX="$THEOS/toolchain/linux/iphone/bin/clang++"
+          export TARGET_LD="$THEOS/toolchain/linux/iphone/bin/ld64"
+          export TARGET_STRIP="$THEOS/toolchain/linux/iphone/bin/strip"
+          export TARGET_DSUTILS="$THEOS/toolchain/linux/iphone/bin/dsymutil"
           make package FINALPACKAGE=1
 
       - name: Upload .deb
