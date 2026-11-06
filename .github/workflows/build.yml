@@ -26,27 +26,32 @@ jobs:
       - name: Install toolchain
         run: |
           curl -LO https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz
-          echo "=== Archive contents (clang-related) ==="
-          tar -tf swift-5.8-ubuntu22.04.tar.xz | grep -E "(clang|host)" | head -30
+          echo "=== Archive contents (clang/host) ==="
+          tar -tf swift-5.8-ubuntu22.04.tar.xz | grep -E "(clang$|clang\+\+$|host/bin)" | head -20
           echo "=== Extracting ==="
           tar -xf swift-5.8-ubuntu22.04.tar.xz
-          echo "=== Top level ==="
+          echo "=== Top level dirs ==="
           ls -la
           echo "=== linux dir ==="
-          ls -la linux/ 2>/dev/null || echo "no linux dir"
-          echo "=== linux/iphone dir ==="
-          ls -la linux/iphone/ 2>/dev/null || echo "no linux/iphone dir"
-          echo "=== linux/iphone/bin dir ==="
-          ls -la linux/iphone/bin/ 2>/dev/null || echo "no linux/iphone/bin"
+          ls -la linux/
+          echo "=== linux/iphone/bin ==="
+          ls -la linux/iphone/bin/ | head -20
           echo "=== Looking for real clang binary ==="
-          find . -name "clang*" -type f -executable 2>/dev/null | head -20
+          find . -name "clang" -type f -executable 2>/dev/null
+          find . -name "clang++" -type f -executable 2>/dev/null
           echo "=== Looking for host dir ==="
           find . -type d -name "host" 2>/dev/null
-          echo "=== Copying toolchain ==="
+          echo "=== host/bin contents ==="
+          ls -la host/bin/ 2>/dev/null || echo "no host/bin"
+          ls -la linux/iphone/host/bin/ 2>/dev/null || echo "no linux/iphone/host/bin"
+          echo "=== Copying toolchain with dereference ==="
           mkdir -p $HOME/theos/toolchain/linux/iphone
-          cp -r linux/iphone/* $HOME/theos/toolchain/linux/iphone/
+          # Use -L to follow symlinks and copy real files
+          cp -rL linux/iphone/* $HOME/theos/toolchain/linux/iphone/
           echo "=== After copy ==="
           ls -la $HOME/theos/toolchain/linux/iphone/bin/ | head -20
+          echo "=== Test clang ==="
+          $HOME/theos/toolchain/linux/iphone/bin/clang --version || echo "clang failed"
 
       - name: Install ldid
         run: |
@@ -58,33 +63,6 @@ jobs:
         env:
           THEOS: /home/runner/theos
         run: |
-          echo "=== Finding real clang ==="
-          find $THEOS/toolchain -name "clang" -type f 2>/dev/null
-          echo "=== Finding host dir ==="
-          find $THEOS/toolchain -type d -name "host" 2>/dev/null
-          echo "=== Full toolchain tree ==="
-          find $THEOS/toolchain -maxdepth 4 -type d | sort
-          echo "=== Fixing broken symlinks ==="
-          # Find where clang really is
-          REAL_CLANG=$(find $THEOS/toolchain -name "clang" -type f 2>/dev/null | head -1)
-          echo "Real clang at: $REAL_CLANG"
-          if [ -n "$REAL_CLANG" ]; then
-            CLANG_DIR=$(dirname "$REAL_CLANG")
-            echo "Clang dir: $CLANG_DIR"
-            # Remove broken symlink and copy real file
-            rm -f $THEOS/toolchain/linux/iphone/bin/clang
-            cp "$REAL_CLANG" $THEOS/toolchain/linux/iphone/bin/clang
-            chmod +x $THEOS/toolchain/linux/iphone/bin/clang
-            # Same for clang++
-            REAL_CLANGXX=$(find $THEOS/toolchain -name "clang++" -type f 2>/dev/null | head -1)
-            if [ -n "$REAL_CLANGXX" ]; then
-              rm -f $THEOS/toolchain/linux/iphone/bin/clang++
-              cp "$REAL_CLANGXX" $THEOS/toolchain/linux/iphone/bin/clang++
-              chmod +x $THEOS/toolchain/linux/iphone/bin/clang++
-            fi
-          fi
-          echo "=== Testing clang ==="
-          $THEOS/toolchain/linux/iphone/bin/clang --version || echo "clang still failed"
           export PATH="$THEOS/bin:$PATH"
           make package FINALPACKAGE=1
 
