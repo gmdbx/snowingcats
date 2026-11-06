@@ -76,13 +76,17 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
+          # Remove old gh-pages and clone fresh
+          rm -rf gh-pages
           git clone --branch gh-pages --single-branch https://x-access-token:${GITHUB_TOKEN}@github.com/gmdbx/snowingcats.git gh-pages 2>/dev/null || git clone https://x-access-token:${GITHUB_TOKEN}@github.com/gmdbx/snowingcats.git gh-pages
           cd gh-pages
           
-          # Clean and copy new files
-          rm -rf debs Packages Packages.bz2 Release
+          # Remove ALL files (keep .git)
+          find . -maxdepth 1 -not -name '.git' -not -name '.' -exec rm -rf {} +
+          
+          # Copy repo files
           cp -r ../repo/* .
           
           git add .
           git commit -m "Update repo $(date)" || echo "No changes"
-          git push origin gh-pages
+          git push origin gh-pages --force
