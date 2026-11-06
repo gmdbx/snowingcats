@@ -67,12 +67,13 @@ jobs:
         env:
           THEOS: /home/runner/theos
         run: |
-          echo "=== Toolchain structure ==="
-          find $THEOS/toolchain -type f | head -50
-          echo "=== bin dir ==="
-          ls -la $THEOS/toolchain/linux/iphone/bin/ 2>/dev/null || echo "no bin"
-          echo "=== Looking for clang ==="
-          find $THEOS/toolchain -name "clang*" 2>/dev/null
+          echo "=== Fixing permissions ==="
+          chmod +x $THEOS/toolchain/linux/iphone/bin/* 2>/dev/null || true
+          echo "=== Checking clang ==="
+          ls -la $THEOS/toolchain/linux/iphone/bin/clang*
+          file $THEOS/toolchain/linux/iphone/bin/clang
+          echo "=== Testing clang ==="
+          $THEOS/toolchain/linux/iphone/bin/clang --version || echo "clang failed"
           export PATH="$THEOS/bin:$PATH"
           make package FINALPACKAGE=1
 
