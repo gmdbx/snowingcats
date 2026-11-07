@@ -1,2 +1,6 @@
 #!/bin/sh
+
+# Remove old wrong plist from previous versions
+rm -f "/var/jb/Library/PreferenceLoader/Preferences/SnowingCats.plist"
+
 exit 0
