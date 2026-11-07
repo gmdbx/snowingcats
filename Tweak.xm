@@ -13,6 +13,8 @@ static CGFloat scCount = 20.0;
 static CGFloat scSize = 24.0;
 static CGFloat scSpeed = 1.0;
 
+static BOOL scLocked = NO;
+
 static UIWindow *snowWindow = nil;
 static CAEmitterLayer *snowEmitter = nil;
 
@@ -41,15 +43,18 @@ static UIImage *SCCatImage() {
 }
 
 static BOOL SCIsLocked() {
-    // On lock screen: no visible window of the app is key, or app is protected
-    // Simplest reliable check on iOS 15: app is not active (goes to background on lock)
-    UIApplication *app = [UIApplication sharedApplication];
-    return app.applicationState != UIApplicationStateActive;
+    return scLocked;
 }
+
+static NSString *scFrontmostApp = nil;
 
 static BOOL SCShouldShow() {
     if (!scEnabled) return NO;
     if (SCIsSpringBoard()) {
+        // If another app is frontmost, SpringBoard's window must hide
+        if (scFrontmostApp && [scFrontmostApp length] && ![scFrontmostApp isEqualToString:@"com.apple.springboard"]) {
+            return NO;
+        }
         return SCIsLocked() ? scOnLockscreen : scOnSpringboard;
     }
     return scOnApps;
@@ -110,6 +115,27 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     });
 }
 
+// Track lock screen state via iOS 15 API
+%hook SBLockScreenViewController
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    scLocked = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    %orig;
+    scLocked = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
+
+%end
+
 %hook SpringBoard
 
 - (void)applicationDidFinishLaunching:(id)application {
@@ -122,13 +148,14 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     });
 }
 
-%end
-
-// SpringBoard lock/unlock tracking
-%hook SBUserSessionController
-
-- (void)lockScreenLockedChanged:(id)notification {
+- (void)frontmostApplicationWithIdentifierChanged:(id)notification {
     %orig;
+    NSDictionary *info = [notification userInfo];
+    if (info[@"applicationIdentifier"]) {
+        scFrontmostApp = info[@"applicationIdentifier"];
+    } else {
+        scFrontmostApp = nil;
+    }
     dispatch_async(dispatch_get_main_queue(), ^{
         SCUpdateEmitter();
     });
@@ -136,7 +163,6 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 
 %end
 
-// Other apps: create our window, track lock state
 %hook UIApplication
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
