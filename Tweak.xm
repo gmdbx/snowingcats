@@ -13,8 +13,6 @@ static CGFloat scCount = 20.0;
 static CGFloat scSize = 24.0;
 static CGFloat scSpeed = 1.0;
 
-static BOOL scLocked = NO;
-
 static UIWindow *snowWindow = nil;
 static CAEmitterLayer *snowEmitter = nil;
 
@@ -24,13 +22,13 @@ static BOOL SCIsSpringBoard() {
 
 static void SCLoadPrefs() {
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:PREFS_PATH];
-    if (prefs[@"enabled"])        scEnabled      = [prefs[@"enabled"] boolValue];
-    if (prefs[@"lockscreen"])     scOnLockscreen = [prefs[@"lockscreen"] boolValue];
-    if (prefs[@"springboard"])    scOnSpringboard = [prefs[@"springboard"] boolValue];
-    if (prefs[@"apps"])           scOnApps       = [prefs[@"apps"] boolValue];
-    if (prefs[@"count"])          scCount        = [prefs[@"count"] floatValue];
-    if (prefs[@"size"])           scSize         = [prefs[@"size"] floatValue];
-    if (prefs[@"speed"])          scSpeed        = [prefs[@"speed"] floatValue];
+    if (prefs[@"enabled"])     scEnabled      = [prefs[@"enabled"] boolValue];
+    if (prefs[@"lockscreen"])  scOnLockscreen = [prefs[@"lockscreen"] boolValue];
+    if (prefs[@"springboard"]) scOnSpringboard = [prefs[@"springboard"] boolValue];
+    if (prefs[@"apps"])        scOnApps       = [prefs[@"apps"] boolValue];
+    if (prefs[@"count"])       scCount        = [prefs[@"count"] floatValue];
+    if (prefs[@"size"])        scSize         = [prefs[@"size"] floatValue];
+    if (prefs[@"speed"])       scSpeed        = [prefs[@"speed"] floatValue];
 }
 
 static UIImage *SCCatImage() {
@@ -42,16 +40,23 @@ static UIImage *SCCatImage() {
     return cat;
 }
 
+static BOOL SCIsLocked() {
+    // On lock screen: no visible window of the app is key, or app is protected
+    // Simplest reliable check on iOS 15: app is not active (goes to background on lock)
+    UIApplication *app = [UIApplication sharedApplication];
+    return app.applicationState != UIApplicationStateActive;
+}
+
 static BOOL SCShouldShow() {
     if (!scEnabled) return NO;
     if (SCIsSpringBoard()) {
-        return scLocked ? scOnLockscreen : scOnSpringboard;
+        return SCIsLocked() ? scOnLockscreen : scOnSpringboard;
     }
     return scOnApps;
 }
 
 static void SCUpdateEmitter() {
-    if (!snowEmitter) return;
+    if (!snowWindow) return;
 
     snowWindow.hidden = !SCShouldShow();
 
@@ -105,27 +110,6 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     });
 }
 
-// Track lock screen state (SpringBoard only)
-%hook SBLockScreenViewController
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    scLocked = YES;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        SCUpdateEmitter();
-    });
-}
-
-- (void)viewDidDisappear:(BOOL)animated {
-    %orig;
-    scLocked = NO;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        SCUpdateEmitter();
-    });
-}
-
-%end
-
 %hook SpringBoard
 
 - (void)applicationDidFinishLaunching:(id)application {
@@ -140,7 +124,19 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 
 %end
 
-// Other apps: create our own window inside each app
+// SpringBoard lock/unlock tracking
+%hook SBUserSessionController
+
+- (void)lockScreenLockedChanged:(id)notification {
+    %orig;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
+
+%end
+
+// Other apps: create our window, track lock state
 %hook UIApplication
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -155,12 +151,29 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     return ret;
 }
 
+- (void)applicationDidBecomeActive {
+    %orig;
+
+    if (!SCIsSpringBoard()) {
+        SCLoadPrefs();
+        SCUpdateEmitter();
+    }
+}
+
+- (void)applicationWillResignActive {
+    %orig;
+
+    if (!SCIsSpringBoard()) {
+        SCUpdateEmitter();
+    }
+}
+
 %end
 
 %ctor {
-    // Avoid loading into system daemons / preferences app itself
     NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
     if (!bundleID || ![bundleID length]) return;
+    // Load into SpringBoard and all third-party apps, but skip Apple apps (except SpringBoard)
     if ([bundleID hasPrefix:@"com.apple."] && !SCIsSpringBoard()) return;
 
     CFNotificationCenterAddObserver(
