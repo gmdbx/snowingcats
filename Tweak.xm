@@ -5,6 +5,10 @@
 #define BUNDLE_PATH @"/var/jb/Library/Application Support/SnowingCats"
 #define PREFS_CHANGED "com.you.snowingcats.prefschanged"
 
+@interface SCHelper : NSObject
++ (void)pollWindowState;
+@end
+
 static BOOL scEnabled = YES;
 static BOOL scOnSpringboard = YES;
 static BOOL scOnLockscreen = YES;
@@ -75,15 +79,53 @@ static BOOL SCShouldShow() {
     if (SCIsSpringBoard()) {
         // Lock screen showing? use lockscreen toggle
         if (SCIsLocked()) return scOnLockscreen;
+        // App open? hide
+        if (SCAppIsFrontmost()) return NO;
         // Otherwise only when Home Screen is visible
-        return scOnHomeScreen ? scOnSpringboard : NO;
+        return scOnSpringboard;
     }
     return scOnApps;
 }
 
-static void SCUpdateEmitter() {
+// Check if an app is frontmost via SBWorkspace's activeApplication
+static BOOL SCAppIsFrontmost() {
+    return scFrontmostApp != nil && [scFrontmostApp length] > 0;
+}
+
+static void SCSetupSnow();
+
+@interface SCHelper : NSObject
+@end
+
+@implementation SCHelper
+
++ (void)pollWindowState {
     if (!snowWindow) return;
 
+    // Check if any other window is above ours in SpringBoard
+    // If app is open, app's window lives in app process, not here.
+    // In SpringBoard: check if springboard's own icon window is key
+    UIApplication *app = [UIApplication sharedApplication];
+    NSArray *windows = app.windows;
+
+    BOOL appWindowVisible = NO;
+    for (UIWindow *w in windows) {
+        if ([w isKindOfClass:[snowWindow class]] && w != snowWindow && !w.isHidden && w.windowLevel > snowWindow.windowLevel) {
+            appWindowVisible = YES;
+            break;
+        }
+    }
+
+    // In SpringBoard: if a system window (like app switcher) is above, our snow hides behind it - fine.
+    // The main check: our show/hide logic runs in SCShouldShow via hooks.
+    // This timer just re-applies preference changes periodically (cheap)
+    SCUpdateEmitter();
+}
+
+@end
+
+static void SCUpdateEmitter() {
+    if (!snowWindow) return;
     BOOL shouldShow = SCShouldShow();
     NSLog(@"[SnowingCats] bundle=%@ locked=%d homeScreen=%d prefs(en=%d, sb=%d, ls=%d, apps=%d) -> show=%d",
         [[NSBundle mainBundle] bundleIdentifier], scLocked, scOnHomeScreen,
@@ -115,7 +157,8 @@ static void SCSetupSnow() {
     if (snowWindow) return;
 
     snowWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-    snowWindow.windowLevel = UIWindowLevelStatusBar + 100.0;
+    // Below status bar so it doesn't cover apps' status bars
+    snowWindow.windowLevel = UIWindowLevelStatusBar - 1.0;
     snowWindow.userInteractionEnabled = NO;
     snowWindow.backgroundColor = [UIColor clearColor];
     snowWindow.hidden = YES;
@@ -132,6 +175,13 @@ static void SCSetupSnow() {
     [container.layer addSublayer:snowEmitter];
 
     SCUpdateEmitter();
+
+    // Fallback polling: re-apply state periodically
+    [NSTimer scheduledTimerWithTimeInterval:0.5
+        target:[SCHelper class]
+        selector:@selector(pollWindowState)
+        userInfo:nil
+        repeats:YES];
 }
 
 static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
@@ -141,12 +191,13 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     });
 }
 
-// Track lock screen state via iOS 15 API
-%hook SBLockScreenViewController
+// Track lock screen state (CSCoverSheetViewController on iOS 15)
+%hook CSCoverSheetViewController
 
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     scLocked = YES;
+    NSLog(@"[SnowingCats] lock screen appeared, locked=YES");
     dispatch_async(dispatch_get_main_queue(), ^{
         SCUpdateEmitter();
     });
@@ -155,6 +206,7 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 - (void)viewDidDisappear:(BOOL)animated {
     %orig;
     scLocked = NO;
+    NSLog(@"[SnowingCats] lock screen disappeared, locked=NO");
     dispatch_async(dispatch_get_main_queue(), ^{
         SCUpdateEmitter();
     });
@@ -168,6 +220,7 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     scOnHomeScreen = YES;
+    NSLog(@"[SnowingCats] home screen appeared");
     dispatch_async(dispatch_get_main_queue(), ^{
         SCUpdateEmitter();
     });
@@ -176,6 +229,7 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 - (void)viewDidDisappear:(BOOL)animated {
     %orig;
     scOnHomeScreen = NO;
+    NSLog(@"[SnowingCats] home screen disappeared");
     dispatch_async(dispatch_get_main_queue(), ^{
         SCUpdateEmitter();
     });
@@ -198,11 +252,24 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 - (void)frontmostApplicationWithIdentifierChanged:(id)notification {
     %orig;
     NSDictionary *info = [notification userInfo];
-    if (info[@"applicationIdentifier"]) {
-        scFrontmostApp = info[@"applicationIdentifier"];
-    } else {
-        scFrontmostApp = nil;
-    }
+    id appId = info[@"applicationIdentifier"];
+    scFrontmostApp = appId;
+    NSLog(@"[SnowingCats] frontmost app changed: %@", appId);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
+
+%end
+
+// App launched / deactivated (direct workspace hook)
+%hook SBWorkspace
+
+- (void)noteFrontmostApplicationChanged:(id)arg1 {
+    %orig;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
 }
 
 %end
