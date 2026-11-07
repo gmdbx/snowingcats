@@ -1,6 +1,6 @@
 Package: com.you.snowingcats
 Name: Snowing Cats
-Version: 1.1.3
+Version: 1.1.4
 Architecture: iphoneos-arm64
 Description: Cats falling like snow on your SpringBoard. Configurable count and size.
 Maintainer: You

@@ -23,14 +23,35 @@ static BOOL SCIsSpringBoard() {
 }
 
 static void SCLoadPrefs() {
+    // PreferenceLoader may write to either location depending on setup
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:PREFS_PATH];
+    if (!prefs) {
+        prefs = [NSDictionary dictionaryWithContentsOfFile:@"/var/mobile/Library/Preferences/com.you.snowingcats.plist"];
+    }
+    if (!prefs) return;
+
+    // Only override defaults when key explicitly exists in plist
+    // PSSwitchCell defaults are YES for enabled/springboard/lockscreen, NO for apps
     if (prefs[@"enabled"])     scEnabled      = [prefs[@"enabled"] boolValue];
+    else                        scEnabled      = YES;
+
     if (prefs[@"lockscreen"])  scOnLockscreen = [prefs[@"lockscreen"] boolValue];
+    else                        scOnLockscreen = YES;
+
     if (prefs[@"springboard"]) scOnSpringboard = [prefs[@"springboard"] boolValue];
+    else                        scOnSpringboard = YES;
+
     if (prefs[@"apps"])        scOnApps       = [prefs[@"apps"] boolValue];
+    else                        scOnApps       = NO;
+
     if (prefs[@"count"])       scCount        = [prefs[@"count"] floatValue];
+    else                        scCount        = 20.0;
+
     if (prefs[@"size"])        scSize         = [prefs[@"size"] floatValue];
+    else                        scSize         = 24.0;
+
     if (prefs[@"speed"])       scSpeed        = [prefs[@"speed"] floatValue];
+    else                        scSpeed        = 1.0;
 }
 
 static UIImage *SCCatImage() {
@@ -63,7 +84,12 @@ static BOOL SCShouldShow() {
 static void SCUpdateEmitter() {
     if (!snowWindow) return;
 
-    snowWindow.hidden = !SCShouldShow();
+    BOOL shouldShow = SCShouldShow();
+    NSLog(@"[SnowingCats] bundle=%@ locked=%d homeScreen=%d prefs(en=%d, sb=%d, ls=%d, apps=%d) -> show=%d",
+        [[NSBundle mainBundle] bundleIdentifier], scLocked, scOnHomeScreen,
+        scEnabled, scOnSpringboard, scOnLockscreen, scOnApps, shouldShow);
+
+    snowWindow.hidden = !shouldShow;
 
     CAEmitterCell *cell = [CAEmitterCell emitterCell];
     cell.contents = (id)SCCatImage().CGImage;
