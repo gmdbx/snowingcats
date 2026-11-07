@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
+#import <notify.h>
 
 #define PREFS_PATH @"/var/jb/var/mobile/Library/Preferences/com.you.snowingcats.plist"
 #define BUNDLE_PATH @"/var/jb/Library/Application Support/SnowingCats"
@@ -14,7 +15,6 @@ static CGFloat scSize = 24.0;
 static CGFloat scSpeed = 1.0;
 
 static BOOL scLocked = NO;
-static BOOL scOnHomeScreen = NO;
 static BOOL scAppOpen = NO;
 
 static UIWindow *snowWindow = nil;
@@ -63,7 +63,7 @@ static void SCUpdateEmitter() {
     if (!snowWindow) return;
 
     BOOL shouldShow = SCShouldShow();
-    NSLog(@"[SnowingCats] %@ locked=%d appOpen=%d prefs(en=%d, sb=%d, ls=%d, apps=%d) -> show=%d",
+    NSLog(@"[SnowingCats] %@ locked=%d appOpen=%d (en=%d sb=%d ls=%d apps=%d) show=%d",
         [[NSBundle mainBundle] bundleIdentifier], scLocked, scAppOpen,
         scEnabled, scOnSpringboard, scOnLockscreen, scOnApps, shouldShow);
 
@@ -112,6 +112,27 @@ static void SCSetupSnow() {
     SCUpdateEmitter();
 }
 
+// Lock state via Darwin notification (posted by system on lock/unlock)
+static void SCLockStateChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    // Notification itself doesn't carry state, check via notify_get_state
+    int state = 0;
+    uint64_t lockState = 0;
+    int token;
+    if (notify_register_check("com.apple.springboard.lockstate", &token) == NOTIFY_STATUS_OK) {
+        uint64_t val = 0;
+        if (notify_get_state(token, &val) == NOTIFY_STATUS_OK) {
+            state = (int)val;
+        }
+        notify_cancel(token);
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // lockstate: 1 = locked
+        scLocked = (state != 0);
+        NSLog(@"[SnowingCats] lockstate changed: %d", scLocked);
+        SCUpdateEmitter();
+    });
+}
+
 static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     dispatch_async(dispatch_get_main_queue(), ^{
         SCLoadPrefs();
@@ -119,7 +140,12 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     });
 }
 
-// ---- SpringBoard hooks ----
+// App open/close: Darwin notification from system (workspace changes)
+static void SCAppChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
 
 %hook SpringBoard
 
@@ -127,45 +153,37 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     %orig;
 
     SCLoadPrefs();
+    SCLoadPrefs();
+
+    // Check initial lock state
+    uint64_t val = 0;
+    int token;
+    if (notify_register_check("com.apple.springboard.lockstate", &token) == NOTIFY_STATUS_OK) {
+        if (notify_get_state(token, &val) == NOTIFY_STATUS_OK) {
+            scLocked = (val != 0);
+        }
+        notify_cancel(token);
+    }
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         SCSetupSnow();
     });
 }
 
-%end
-
-// Lock screen state (CSCoverSheetViewController on iOS 15)
-%hook CSCoverSheetViewController
-
-- (void)viewDidAppear:(BOOL)animated {
+// Track app open/close via bulletin/notification of frontmost app
+- (void)applicationActivated:(id)app {
     %orig;
-    scLocked = YES;
-    NSLog(@"[SnowingCats] lock screen appeared");
+    scAppOpen = YES;
+    NSLog(@"[SnowingCats] app activated (SB)");
     dispatch_async(dispatch_get_main_queue(), ^{
         SCUpdateEmitter();
     });
 }
 
-- (void)viewDidDisappear:(BOOL)animated {
+- (void)applicationDeactivated:(id)app {
     %orig;
-    scLocked = NO;
-    NSLog(@"[SnowingCats] lock screen disappeared");
-    dispatch_async(dispatch_get_main_queue(), ^{
-        SCUpdateEmitter();
-    });
-}
-
-%end
-
-// App open/close tracking
-%hook SBWorkspace
-
-- (void)noteFrontmostApplicationChanged:(id)arg1 {
-    %orig;
-    // arg1 = app or nil when returning to home screen
-    scAppOpen = (arg1 != nil);
-    NSLog(@"[SnowingCats] frontmost app changed, appOpen=%d", scAppOpen);
+    scAppOpen = NO;
+    NSLog(@"[SnowingCats] app deactivated (SB)");
     dispatch_async(dispatch_get_main_queue(), ^{
         SCUpdateEmitter();
     });
@@ -173,8 +191,7 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 
 %end
 
-// ---- Other apps hooks ----
-
+// Other apps: create our own window
 %hook UIApplication
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -194,14 +211,24 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 %ctor {
     NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
     if (!bundleID || ![bundleID length]) return;
-    // Only SpringBoard + third-party apps
     if ([bundleID hasPrefix:@"com.apple."] && !SCIsSpringBoard()) return;
 
+    // Preferences reload
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         NULL,
         SCPrefsChanged,
         CFSTR(PREFS_CHANGED),
+        NULL,
+        CFNotificationSuspensionBehaviorCoalesce
+    );
+
+    // Lock state changes (system notification, works on all processes)
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        NULL,
+        SCLockStateChanged,
+        CFSTR("com.apple.springboard.lockstate"),
         NULL,
         CFNotificationSuspensionBehaviorCoalesce
     );
