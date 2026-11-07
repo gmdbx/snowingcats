@@ -38,13 +38,15 @@
 			<key>key</key>
 			<string>count</string>
 			<key>label</key>
-			<string>Count</string>
+			<string>Count (1–100)</string>
 			<key>max</key>
 			<real>100</real>
 			<key>min</key>
 			<real>1</real>
 			<key>showValue</key>
 			<true/>
+			<key>isDecimal</key>
+			<false/>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -56,13 +58,15 @@
 			<key>key</key>
 			<string>size</string>
 			<key>label</key>
-			<string>Size</string>
+			<string>Size (8–120 px)</string>
 			<key>max</key>
 			<real>120</real>
 			<key>min</key>
 			<real>8</real>
 			<key>showValue</key>
 			<true/>
+			<key>isDecimal</key>
+			<false/>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -74,7 +78,7 @@
 			<key>key</key>
 			<string>speed</string>
 			<key>label</key>
-			<string>Speed</string>
+			<string>Speed (0.1–3.0×)</string>
 			<key>max</key>
 			<real>3.0</real>
 			<key>min</key>
