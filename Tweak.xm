@@ -47,15 +47,15 @@ static BOOL SCIsLocked() {
 }
 
 static NSString *scFrontmostApp = nil;
+static BOOL scOnHomeScreen = NO;
 
 static BOOL SCShouldShow() {
     if (!scEnabled) return NO;
     if (SCIsSpringBoard()) {
-        // If another app is frontmost, SpringBoard's window must hide
-        if (scFrontmostApp && [scFrontmostApp length] && ![scFrontmostApp isEqualToString:@"com.apple.springboard"]) {
-            return NO;
-        }
-        return SCIsLocked() ? scOnLockscreen : scOnSpringboard;
+        // Lock screen showing? use lockscreen toggle
+        if (SCIsLocked()) return scOnLockscreen;
+        // Otherwise only when Home Screen is visible
+        return scOnHomeScreen ? scOnSpringboard : NO;
     }
     return scOnApps;
 }
@@ -136,6 +136,27 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 
 %end
 
+// Show SB window only while Home Screen is on screen
+%hook SBHomeScreenViewController
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    scOnHomeScreen = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    %orig;
+    scOnHomeScreen = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
+
+%end
+
 %hook SpringBoard
 
 - (void)applicationDidFinishLaunching:(id)application {
@@ -156,9 +177,6 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     } else {
         scFrontmostApp = nil;
     }
-    dispatch_async(dispatch_get_main_queue(), ^{
-        SCUpdateEmitter();
-    });
 }
 
 %end
