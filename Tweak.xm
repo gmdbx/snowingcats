@@ -6,19 +6,31 @@
 #define PREFS_CHANGED "com.you.snowingcats.prefschanged"
 
 static BOOL scEnabled = YES;
+static BOOL scOnSpringboard = YES;
+static BOOL scOnLockscreen = YES;
+static BOOL scOnApps = NO;
 static CGFloat scCount = 20.0;
 static CGFloat scSize = 24.0;
 static CGFloat scSpeed = 1.0;
 
+static BOOL scLocked = NO;
+
 static UIWindow *snowWindow = nil;
 static CAEmitterLayer *snowEmitter = nil;
 
+static BOOL SCIsSpringBoard() {
+    return [[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.apple.springboard"];
+}
+
 static void SCLoadPrefs() {
     NSDictionary *prefs = [NSDictionary dictionaryWithContentsOfFile:PREFS_PATH];
-    if (prefs[@"enabled"]) scEnabled = [prefs[@"enabled"] boolValue];
-    if (prefs[@"count"])   scCount   = [prefs[@"count"] floatValue];
-    if (prefs[@"size"])    scSize    = [prefs[@"size"] floatValue];
-    if (prefs[@"speed"])   scSpeed   = [prefs[@"speed"] floatValue];
+    if (prefs[@"enabled"])        scEnabled      = [prefs[@"enabled"] boolValue];
+    if (prefs[@"lockscreen"])     scOnLockscreen = [prefs[@"lockscreen"] boolValue];
+    if (prefs[@"springboard"])    scOnSpringboard = [prefs[@"springboard"] boolValue];
+    if (prefs[@"apps"])           scOnApps       = [prefs[@"apps"] boolValue];
+    if (prefs[@"count"])          scCount        = [prefs[@"count"] floatValue];
+    if (prefs[@"size"])           scSize         = [prefs[@"size"] floatValue];
+    if (prefs[@"speed"])          scSpeed        = [prefs[@"speed"] floatValue];
 }
 
 static UIImage *SCCatImage() {
@@ -30,10 +42,18 @@ static UIImage *SCCatImage() {
     return cat;
 }
 
+static BOOL SCShouldShow() {
+    if (!scEnabled) return NO;
+    if (SCIsSpringBoard()) {
+        return scLocked ? scOnLockscreen : scOnSpringboard;
+    }
+    return scOnApps;
+}
+
 static void SCUpdateEmitter() {
     if (!snowEmitter) return;
 
-    snowEmitter.hidden = !scEnabled;
+    snowWindow.hidden = !SCShouldShow();
 
     CAEmitterCell *cell = [CAEmitterCell emitterCell];
     cell.contents = (id)SCCatImage().CGImage;
@@ -62,7 +82,7 @@ static void SCSetupSnow() {
     snowWindow.windowLevel = UIWindowLevelStatusBar + 100.0;
     snowWindow.userInteractionEnabled = NO;
     snowWindow.backgroundColor = [UIColor clearColor];
-    snowWindow.hidden = NO;
+    snowWindow.hidden = YES;
 
     UIView *container = [[UIView alloc] initWithFrame:snowWindow.bounds];
     container.backgroundColor = [UIColor clearColor];
@@ -79,9 +99,32 @@ static void SCSetupSnow() {
 }
 
 static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
-    SCLoadPrefs();
-    SCUpdateEmitter();
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCLoadPrefs();
+        SCUpdateEmitter();
+    });
 }
+
+// Track lock screen state (SpringBoard only)
+%hook SBLockScreenViewController
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    scLocked = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    %orig;
+    scLocked = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        SCUpdateEmitter();
+    });
+}
+
+%end
 
 %hook SpringBoard
 
@@ -97,7 +140,29 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
 
 %end
 
+// Other apps: create our own window inside each app
+%hook UIApplication
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    BOOL ret = %orig;
+
+    if (!SCIsSpringBoard()) {
+        SCLoadPrefs();
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            SCSetupSnow();
+        });
+    }
+    return ret;
+}
+
+%end
+
 %ctor {
+    // Avoid loading into system daemons / preferences app itself
+    NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
+    if (!bundleID || ![bundleID length]) return;
+    if ([bundleID hasPrefix:@"com.apple."] && !SCIsSpringBoard()) return;
+
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         NULL,
