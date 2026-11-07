@@ -1,7 +1,7 @@
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 
-#define PREFS_PATH @"/var/mobile/Library/Preferences/com.you.snowingcats.plist"
+#define PREFS_PATH @"/var/jb/var/mobile/Library/Preferences/com.you.snowingcats.plist"
 #define BUNDLE_PATH @"/var/jb/Library/Application Support/SnowingCats"
 #define PREFS_CHANGED "com.you.snowingcats.prefschanged"
 

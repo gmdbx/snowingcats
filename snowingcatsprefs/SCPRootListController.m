@@ -14,9 +14,10 @@
 
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier {
     [super setPreferenceValue:value specifier:specifier];
+
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
-        CFSTR(PREFS_CHANGED),
+        CFSTR("com.you.snowingcats.prefschanged"),
         NULL, NULL, YES
     );
 }
