@@ -1,6 +1,10 @@
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <notify.h>
+#import <dlfcn.h>
+
+// SBSCopyFrontmostApplicationDisplayIdentifier lives in SpringBoardServices framework
+extern "C" void *SBSCopyFrontmostApplicationDisplayIdentifier(void);
 
 #define PREFS_PATH @"/var/jb/var/mobile/Library/Preferences/com.you.snowingcats.plist"
 #define BUNDLE_PATH @"/var/jb/Library/Application Support/SnowingCats"
@@ -59,6 +63,25 @@ static BOOL SCIsLockedNow() {
     return (val != 0);
 }
 
+// Returns frontmost app bundle ID, or nil if home screen / none
+static NSString *SCFrontmostApp() {
+    CFStringRef app = NULL;
+    void *handle = dlopen("/usr/lib/libMobileGestalt.dylib", RTLD_LAZY);
+    // Use SpringBoardServices
+    void *sbServices = dlopen("libSpringBoardServices.dylib", RTLD_LAZY);
+    if (!sbServices) return nil;
+
+    typedef CFStringRef (*CopyFn)(void);
+    CopyFn copy = (CopyFn)dlsym(sbServices, "SBSCopyFrontmostApplicationDisplayIdentifier");
+    if (!copy) return nil;
+
+    app = copy();
+    if (!app) return nil;
+    NSString *result = (__bridge NSString *)app;
+    CFRelease(app);
+    return result;
+}
+
 static BOOL SCShouldShow() {
     if (!scEnabled) return NO;
     if (SCIsSpringBoard()) {
@@ -71,6 +94,13 @@ static BOOL SCShouldShow() {
 
 static void SCUpdateEmitter() {
     if (!snowWindow) return;
+
+    // In SpringBoard: check frontmost app directly (fresh value)
+    if (SCIsSpringBoard()) {
+        NSString *front = SCFrontmostApp();
+        scAppOpen = (front != nil && [front length] > 0);
+        NSLog(@"[SnowingCats] frontmost app: %@ -> appOpen=%d", front, scAppOpen);
+    }
 
     BOOL shouldShow = SCShouldShow();
     NSLog(@"[SnowingCats] %@ locked=%d appOpen=%d (en=%d sb=%d ls=%d apps=%d) show=%d",
@@ -103,7 +133,8 @@ static void SCSetupSnow() {
     if (snowWindow) return;
 
     snowWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-    snowWindow.windowLevel = UIWindowLevelStatusBar + 1.0;
+    // High level: above lock screen (its windows ~2000), below nothing
+    snowWindow.windowLevel = 3000.0;
     snowWindow.userInteractionEnabled = NO;
     snowWindow.backgroundColor = [UIColor clearColor];
     snowWindow.hidden = YES;
@@ -122,7 +153,7 @@ static void SCSetupSnow() {
     SCUpdateEmitter();
 }
 
-// Poll every 2s in SpringBoard to pick up lock state + app open state
+// Poll helper (unused now, kept for clarity)
 static void SCPoll() {
     if (!SCIsSpringBoard()) return;
     BOOL newLocked = SCIsLockedNow();
@@ -150,9 +181,20 @@ static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStr
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         SCSetupSnow();
 
-        // Poll lock state every 2 seconds (cheap)
-        [NSTimer scheduledTimerWithTimeInterval:2.0 repeats:YES block:^(NSTimer *t) {
-            SCPoll();
+        // Poll every 0.5s: lock state + frontmost app (cheap)
+        [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(NSTimer *t) {
+            BOOL newLocked = SCIsLockedNow();
+            BOOL stateChanged = (newLocked != scLocked);
+            scLocked = newLocked;
+
+            NSString *front = SCFrontmostApp();
+            BOOL newAppOpen = (front != nil && [front length] > 0);
+            if (newAppOpen != scAppOpen) stateChanged = YES;
+            scAppOpen = newAppOpen;
+
+            if (stateChanged) {
+                SCUpdateEmitter();
+            }
         }];
     });
 }
