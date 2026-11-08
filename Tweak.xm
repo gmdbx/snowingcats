@@ -49,6 +49,16 @@ static UIImage *SCCatImage() {
     return cat;
 }
 
+static BOOL SCIsLockedNow() {
+    uint64_t val = 0;
+    int token;
+    if (notify_register_check("com.apple.springboard.lockstate", &token) == NOTIFY_STATUS_OK) {
+        notify_get_state(token, &val);
+        notify_cancel(token);
+    }
+    return (val != 0);
+}
+
 static BOOL SCShouldShow() {
     if (!scEnabled) return NO;
     if (SCIsSpringBoard()) {
@@ -112,37 +122,19 @@ static void SCSetupSnow() {
     SCUpdateEmitter();
 }
 
-// Lock state via Darwin notification (posted by system on lock/unlock)
-static void SCLockStateChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
-    // Notification itself doesn't carry state, check via notify_get_state
-    int state = 0;
-    uint64_t lockState = 0;
-    int token;
-    if (notify_register_check("com.apple.springboard.lockstate", &token) == NOTIFY_STATUS_OK) {
-        uint64_t val = 0;
-        if (notify_get_state(token, &val) == NOTIFY_STATUS_OK) {
-            state = (int)val;
-        }
-        notify_cancel(token);
-    }
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // lockstate: 1 = locked
-        scLocked = (state != 0);
-        NSLog(@"[SnowingCats] lockstate changed: %d", scLocked);
+// Poll every 2s in SpringBoard to pick up lock state + app open state
+static void SCPoll() {
+    if (!SCIsSpringBoard()) return;
+    BOOL newLocked = SCIsLockedNow();
+    if (newLocked != scLocked) {
+        scLocked = newLocked;
         SCUpdateEmitter();
-    });
+    }
 }
 
 static void SCPrefsChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
     dispatch_async(dispatch_get_main_queue(), ^{
         SCLoadPrefs();
-        SCUpdateEmitter();
-    });
-}
-
-// App open/close: Darwin notification from system (workspace changes)
-static void SCAppChanged(CFNotificationCenterRef center, void *observer, CFStringRef name, const void *object, CFDictionaryRef userInfo) {
-    dispatch_async(dispatch_get_main_queue(), ^{
         SCUpdateEmitter();
     });
 }
@@ -153,45 +145,20 @@ static void SCAppChanged(CFNotificationCenterRef center, void *observer, CFStrin
     %orig;
 
     SCLoadPrefs();
-    SCLoadPrefs();
-
-    // Check initial lock state
-    uint64_t val = 0;
-    int token;
-    if (notify_register_check("com.apple.springboard.lockstate", &token) == NOTIFY_STATUS_OK) {
-        if (notify_get_state(token, &val) == NOTIFY_STATUS_OK) {
-            scLocked = (val != 0);
-        }
-        notify_cancel(token);
-    }
+    scLocked = SCIsLockedNow();
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         SCSetupSnow();
-    });
-}
 
-// Track app open/close via bulletin/notification of frontmost app
-- (void)applicationActivated:(id)app {
-    %orig;
-    scAppOpen = YES;
-    NSLog(@"[SnowingCats] app activated (SB)");
-    dispatch_async(dispatch_get_main_queue(), ^{
-        SCUpdateEmitter();
-    });
-}
-
-- (void)applicationDeactivated:(id)app {
-    %orig;
-    scAppOpen = NO;
-    NSLog(@"[SnowingCats] app deactivated (SB)");
-    dispatch_async(dispatch_get_main_queue(), ^{
-        SCUpdateEmitter();
+        // Poll lock state every 2 seconds (cheap)
+        [NSTimer scheduledTimerWithTimeInterval:2.0 repeats:YES block:^(NSTimer *t) {
+            SCPoll();
+        }];
     });
 }
 
 %end
 
-// Other apps: create our own window
 %hook UIApplication
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -213,22 +180,11 @@ static void SCAppChanged(CFNotificationCenterRef center, void *observer, CFStrin
     if (!bundleID || ![bundleID length]) return;
     if ([bundleID hasPrefix:@"com.apple."] && !SCIsSpringBoard()) return;
 
-    // Preferences reload
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
         NULL,
         SCPrefsChanged,
         CFSTR(PREFS_CHANGED),
-        NULL,
-        CFNotificationSuspensionBehaviorCoalesce
-    );
-
-    // Lock state changes (system notification, works on all processes)
-    CFNotificationCenterAddObserver(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        NULL,
-        SCLockStateChanged,
-        CFSTR("com.apple.springboard.lockstate"),
         NULL,
         CFNotificationSuspensionBehaviorCoalesce
     );
