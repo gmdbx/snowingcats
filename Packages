@@ -1,14 +1,14 @@
 Package: com.you.snowingcats
-Version: 1.1.4
+Version: 1.1.8
 Architecture: iphoneos-arm64
 Maintainer: You
-Installed-Size: 468
+Installed-Size: 472
 Depends: mobilesubstrate, preferenceloader
-Filename: debs/com.you.snowingcats_1.1.4_iphoneos-arm64.deb
-Size: 91938
-MD5sum: c386407eb15b74b20f15ac2b1bebcd3f
-SHA1: 27f01430a33cb4bfc3fa6d13794a5d4984ec429e
-SHA256: 0cb1c3a30b0b514782d2478faf89f7b0e4ea06db81d6fb0727a2f5d5f1909dac
+Filename: debs/com.you.snowingcats_1.1.8_iphoneos-arm64.deb
+Size: 91266
+MD5sum: 7932b9e538eda5ed64ce5eda00e19bd8
+SHA1: c0b03a72ab78e23b0505c8a8bb7124d609559505
+SHA256: 84cff903cdb2c57612515dd66ff612f54d606f20fea0978daa68b1810601b57f
 Section: Tweaks
 Description: Cats falling like snow on your SpringBoard. Configurable count and size.
 Author: You
